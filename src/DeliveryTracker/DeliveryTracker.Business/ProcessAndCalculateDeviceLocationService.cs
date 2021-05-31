@@ -48,27 +48,32 @@ namespace DeliveryTracker.Business
 
                 if (linkedDevicesLocation != null && linkedDevicesLocation.Any())
                 {
-                    foreach (var linkedDeviceLocation in linkedDevicesLocation)
-                    {
-                        var distance = _calculateTwoLocationDistanceService.HaversineDistance(
-                            new GeoCordinate(linkedDeviceLocation.Latitude, linkedDeviceLocation.Longitude),
-                            new GeoCordinate(deviceLocation.Latitude, deviceLocation.Longitude));
-                        var alertedVehicleHandheld = new AlertedVehicleHandheld
-                        {
-                            LinkedMacId = linkedDeviceLocation.DeviceMacId,
-                            MacId = deviceLocation.DeviceMacId,
-                            IsMoreThanAllowedDistance = distance > _maxDistanceAllowed,
-                            MacLat = deviceLocation.Latitude,
-                            MacLong = deviceLocation.Longitude,
-                            LinkMacLat = linkedDeviceLocation.Latitude,
-                            LinkMacLong = linkedDeviceLocation.Longitude
-                        };
+                    var tasks = linkedDevicesLocation.Select(p =>
+                        ProcessAndPublish(deviceLocation, cancellationToken, p));
 
-                        await _distanceAlertMessagePublishingClient.PublishAsync(alertedVehicleHandheld, cancellationToken);
-                    }
+                    await Task.WhenAll(tasks);
                 }
             }
         }
 
+        private async Task ProcessAndPublish(DeviceLocation deviceLocation, CancellationToken cancellationToken,
+            DeviceLocation linkedDeviceLocation)
+        {
+            var distance = _calculateTwoLocationDistanceService.HaversineDistance(
+                new GeoCordinate(linkedDeviceLocation.Latitude, linkedDeviceLocation.Longitude),
+                new GeoCordinate(deviceLocation.Latitude, deviceLocation.Longitude));
+            var alertedVehicleHandheld = new AlertedVehicleHandheld
+            {
+                LinkedMacId = linkedDeviceLocation.DeviceMacId,
+                MacId = deviceLocation.DeviceMacId,
+                IsMoreThanAllowedDistance = distance > _maxDistanceAllowed,
+                MacLat = deviceLocation.Latitude,
+                MacLong = deviceLocation.Longitude,
+                LinkMacLat = linkedDeviceLocation.Latitude,
+                LinkMacLong = linkedDeviceLocation.Longitude
+            };
+
+            await _distanceAlertMessagePublishingClient.PublishAsync(alertedVehicleHandheld, cancellationToken);
+        }
     }
 }
