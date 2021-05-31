@@ -1,0 +1,235 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: >-
+  Tracking vehicle and hand held device not more than 50 meter
+Parameters:
+  LookupTableName:
+    Type: String
+  LookupTableArn:
+    Type: String
+  PostNlAlertTopicArn:
+    Type: String
+Resources:
+  IoTTopicRule:
+    Type: AWS::IoT::TopicRule
+    Properties:
+      TopicRulePayload:
+        Description: 'Send IoT Device data to sns topic'
+        AwsIotSqlVersion: '2016-03-23'
+        RuleDisabled: 'false'
+        Sql: !Sub 'SELECT *, parse_time("yyyy-MM-dd HH:mm:ss", timestamp()) as ts FROM "${IoTTopicName}"'
+        Actions:
+          - sns:
+              TargetArn: !Ref RawMetricsDeliveryStream
+              RoleArn: !Sub '${IoTTopicRuleRole.Arn}'
+              MessageFormat: JSON,
+  IoTTopicRuleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - 'iot.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+
+        - PolicyName: 'IoTTopicRulePolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              Effect: Allow
+              Action:
+                - sns:*
+              Resource: !Sub '${DeviceLocationSns.Arn}'
+  DeviceLocationSns:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: "device-location"
+  DeviceLocationQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+        DelaySeconds: 0
+        QueueName: "device-location-queue"
+        ReceiveMessageWaitTimeSeconds: 20
+        VisibilityTimeout: 900
+        RedrivePolicy: 
+          deadLetterTargetArn: !GetAtt DeviceLocationDlq.Arn
+          maxReceiveCount: 7
+  DeviceLocationDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+        DelaySeconds: 0
+        MessageRetentionPeriod: 1209600
+        QueueName: "device-location-dlq"
+
+  DeviceLocationQueueSnsSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+        Endpoint: !GetAtt DeviceLocationQueue.Arn
+        Protocol: sqs
+        TopicArn: !GetAttf DeviceLocationSns.Arn
+  ProcessDeviceLocationQueueEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    DependsOn: "ProcessDeviceLocationHandler"
+    Properties:
+      BatchSize: 10
+      Enabled: true
+      EventSourceArn: !GetAtt DeviceLocationQueue.Arn
+      FunctionName: !GetAtt ProcessDeviceLocationHandler.Arn
+  ProcessDeviceLocationHandler:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      FunctionName: "process-device-location-handler"
+      Handler: DeliveryTracker.Lambda::DeliveryTracker.Lambda.DeviceLocationFunctionHandler.FunctionHandler
+      Runtime: dotnetcore3.1
+      CodeUri: bin.zip
+      Description: >-
+        Subscribed to all the devices location messages queue
+      MemorySize: 256
+      Timeout: 100
+      Role: !GetAtt DeliveryTrackerRole.Arn
+      Environment:
+        Variables:
+          LAMBDA_ENVIRONMENT: Production
+          LookupTableName: !Ref LookupTableName
+          DeviceLocationTable: !Ref DeviceLocationTable
+          VehicleHandheldDistanceAlert: !GetAtt AlertTracker.Arn
+          MaxDistanceAllowed: 50
+      VpcConfig:
+        SecurityGroupIds:
+          - sg-xxx
+        SubnetIds:
+          - subnet-xx
+          - subnet-xx
+          - subnet-xx
+  AlertTrackerSns:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: "alert-tracker"
+  AlertTrackerQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+        DelaySeconds: 0
+        QueueName: "alert-tracker-queue"
+        ReceiveMessageWaitTimeSeconds: 20
+        VisibilityTimeout: 900
+        RedrivePolicy: 
+          deadLetterTargetArn: !GetAtt AlertTrackerDlq.Arn
+          maxReceiveCount: 7
+   AlertTrackerDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+        DelaySeconds: 0
+        MessageRetentionPeriod: 1209600
+        QueueName: "alert-tracker-dlq"
+
+  AlertTrackerSnsSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+        Endpoint: !GetAtt AlertTrackerQueue.Arn
+        Protocol: sqs
+        TopicArn: !GetAttf AlertTrackerSns.Arn
+  AlertTrackerSnsQueueEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    DependsOn: "AlertTrackerSnsHandler"
+    Properties:
+      BatchSize: 10
+      Enabled: true
+      EventSourceArn: !GetAtt AlertTrackerQueue.Arn
+      FunctionName: !GetAtt AlertTrackerSnsHandler.Arn
+  AlertTrackerSnsHandler:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      FunctionName: "alert-tracker-handler"
+      Handler: DeliveryTracker.Lambda::DeliveryTracker.Lambda.VehicleHandheldAlertFunctionHandler.FunctionHandler
+      Runtime: dotnetcore3.1
+      CodeUri: bin.zip
+      Description: >-
+        Subscribed to all the alert tracker queue
+      MemorySize: 256
+      Timeout: 100
+      Role: !GetAtt DeliveryTrackerRole.Arn
+      Environment:
+        Variables:
+          LAMBDA_ENVIRONMENT: Production
+          AlertTable: !Ref AlertTrackerTable
+          PostNlAlertTopicArn: !Ref PostNlAlertTopicArn
+      VpcConfig:
+        SecurityGroupIds:
+          - sg-xxx
+        SubnetIds:
+          - subnet-xx
+          - subnet-xx
+          - subnet-xx
+  DeviceLocationTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+      - AttributeName: "mac"
+        AttributeType: "S"
+      KeySchema:
+      - AttributeName: "mac"
+        KeyType: "HASH"
+      BillingMode: "PAY_PER_REQUEST"
+      TableName: "device-location"
+  AlertTrackerTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+      - AttributeName: "mac"
+        AttributeType: "S"
+      - AttributeName: "lmac"
+        AttributeType: "S"
+      KeySchema:
+      - AttributeName: "mac"
+        KeyType: "HASH"
+      - AttributeName: "lmac"
+        KeyType: "RANGE"
+      BillingMode: "PAY_PER_REQUEST"
+      TableName: alert-tracker
+  DeliveryTrackerRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/"
+      RoleName: "delivery-tracker-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ["lambda.amazonaws.com"]
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: AllowAllDeliveryTrackerRole
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [ "sns:*"]
+                Resource: 
+                  - !Ref PostNlAlertTopicArn
+                  - !GetAtt AlertTrackerSns.Arn
+                  - !GetAtt DeviceLocationSns.Arn
+              - Effect: Allow
+                Action: [ "dynamodb:*" ]
+                Resource: 
+                  - !GetAtt DeviceLocationTable.Arn
+                  - !GetAtt AlertTrackerTable.Arn
+                  - !Ref LookUpTableArn
+              - Effect: Allow
+                Action: ["sqs:*"]
+                Resource: 
+                  - !GetAtt DeviceLocationQueue.Arn
+                  - !GetAtt DeviceLocationDlq.Arn
+                  - !GetAtt AlertTrackerQueue.Arn
+                  - !GetAtt AlertTrackerDlq.Arn
+      ManagedPolicyArns:
+         - "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+
+        
+  
