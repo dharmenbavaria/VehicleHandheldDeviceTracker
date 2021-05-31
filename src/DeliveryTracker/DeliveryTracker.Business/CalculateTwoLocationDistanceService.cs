@@ -5,7 +5,7 @@ using DeliveryTracker.Business.Extensions;
 
 namespace DeliveryTracker.Business
 {
-    public class CalculateLocationDistanceService : ICalculateLocationDistanceService
+    public class CalculateTwoLocationDistanceService : ICalculateTwoLocationDistanceService
     {
         public double HaversineDistance(GeoCordinate pos1, GeoCordinate pos2)
         {

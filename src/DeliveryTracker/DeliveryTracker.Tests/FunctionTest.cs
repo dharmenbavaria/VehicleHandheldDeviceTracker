@@ -13,10 +13,10 @@ namespace DeliveryTracker.Business.Tests
     public class FunctionTest
     {
         private MockRepository _mockRepository = new MockRepository(MockBehavior.Strict);
-        private Mock<ICalculateLocationDistanceService> _calculateLocationDistanceServiceMock;
+        private Mock<ICalculateTwoLocationDistanceService> _calculateLocationDistanceServiceMock;
         private Mock<IDeviceLocationRepository> _deviceLocationRepoMock;
         private Mock<IDeviceLookupRepository> _deviceLookupRepoMock;
-        private Mock<IDistanceMoreMessagePublishingClient> _distanceMorePublishClient;
+        private Mock<IDistanceAlertMessagePublishingClient> _distanceMorePublishClient;
 
 
         [Fact]
@@ -151,19 +151,7 @@ namespace DeliveryTracker.Business.Tests
                         , It.IsAny<GeoCordinate>())).Returns(30);
 
 
-            /*
-             * new AlertedVehicleHandheld
-                    {
-                        IsMoreThanAllowedDistance = false,
-                        LinkedMacId = "abc-1",
-                        MacId = "def-1",
-                        LinkMacLat = 10,
-                        LinkMacLong = 10,
-                        MacLat = 20,
-                        MacLong = 20
-                    }
-             */
-            
+           
             await processCalculateDeviceLocationService.Handle(new DeviceLocation()
             {
                 Latitude = 20,
@@ -202,12 +190,12 @@ namespace DeliveryTracker.Business.Tests
 
         private IProcessCalculateDeviceLocationService Setup(int maxDistance)
         {
-            _calculateLocationDistanceServiceMock = _mockRepository.Create<ICalculateLocationDistanceService>();
+            _calculateLocationDistanceServiceMock = _mockRepository.Create<ICalculateTwoLocationDistanceService>();
             _deviceLocationRepoMock = _mockRepository.Create<IDeviceLocationRepository>();
             _deviceLookupRepoMock = _mockRepository.Create<IDeviceLookupRepository>();
-            _distanceMorePublishClient = _mockRepository.Create<IDistanceMoreMessagePublishingClient>();
+            _distanceMorePublishClient = _mockRepository.Create<IDistanceAlertMessagePublishingClient>();
 
-            return new ProcessCalculateCalculateDeviceLocationService(
+            return new ProcessAndCalculateDeviceLocationService(
                 _deviceLocationRepoMock.Object,
                 _calculateLocationDistanceServiceMock.Object,
                 _deviceLookupRepoMock.Object,

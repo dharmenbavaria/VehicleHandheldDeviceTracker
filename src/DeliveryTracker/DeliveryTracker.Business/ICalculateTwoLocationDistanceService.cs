@@ -1,6 +1,6 @@
 ﻿namespace DeliveryTracker.Business
 {
-    public interface ICalculateLocationDistanceService
+    public interface ICalculateTwoLocationDistanceService
     {
         double HaversineDistance(GeoCordinate pos1, GeoCordinate pos2);
     }

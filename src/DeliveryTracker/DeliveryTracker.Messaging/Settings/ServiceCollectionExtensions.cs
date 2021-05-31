@@ -16,9 +16,9 @@ namespace DeliveryTracker.Messaging.Settings
                     MaxErrorRetry = 3
                 }));
             collectionExtensions
-                .AddTransient<IDistanceMoreMessagePublishingClient, DistanceMoreMessagePublishingClient>();
+                .AddTransient<IDistanceAlertMessagePublishingClient, DistanceAlertMessagePublishingClient>();
             collectionExtensions
-                .AddTransient<IDistanceMoreMessagePublishingClient, DistanceMoreMessagePublishingClient>();
+                .AddTransient<IDistanceAlertMessagePublishingClient, DistanceAlertMessagePublishingClient>();
         }
     }
 }

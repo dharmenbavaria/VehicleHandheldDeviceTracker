@@ -5,11 +5,11 @@ using DeliveryTracker.Lambda.Settings;
 
 namespace DeliveryTracker.Messaging
 {
-    public class DistanceMoreMessagePublishingClient : MessagePublishClientBase, IDistanceMoreMessagePublishingClient
+    public class DistanceAlertMessagePublishingClient : MessagePublishClientBase, IDistanceAlertMessagePublishingClient
     {
         private readonly string _distanceMoreTopicArn;
 
-        public DistanceMoreMessagePublishingClient(IAmazonSimpleNotificationService amazonSimpleNotificationService, IEnvironmentSettings environmentSettings)
+        public DistanceAlertMessagePublishingClient(IAmazonSimpleNotificationService amazonSimpleNotificationService, IEnvironmentSettings environmentSettings)
         : base(amazonSimpleNotificationService)
         {
             _distanceMoreTopicArn = environmentSettings.VehicleHandheldDistanceAlert;

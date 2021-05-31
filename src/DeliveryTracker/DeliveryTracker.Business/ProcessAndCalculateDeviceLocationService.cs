@@ -11,26 +11,26 @@ using DeliveryTracker.Model;
 
 namespace DeliveryTracker.Business
 {
-    public class ProcessCalculateCalculateDeviceLocationService : IProcessCalculateDeviceLocationService
+    public class ProcessAndCalculateDeviceLocationService : IProcessCalculateDeviceLocationService
     {
         private readonly IDeviceLocationRepository _deviceLocationRepository;
-        private readonly ICalculateLocationDistanceService _calculateLocationDistanceService;
+        private readonly ICalculateTwoLocationDistanceService _calculateTwoLocationDistanceService;
         private readonly IDeviceLookupRepository _deviceLookupRepository;
-        private readonly IDistanceMoreMessagePublishingClient _distanceMoreMessagePublishingClient;
+        private readonly IDistanceAlertMessagePublishingClient _distanceAlertMessagePublishingClient;
         private readonly int _maxDistanceAllowed;
 
-        public ProcessCalculateCalculateDeviceLocationService(
+        public ProcessAndCalculateDeviceLocationService(
             IDeviceLocationRepository deviceLocationRepository,
-            ICalculateLocationDistanceService calculateLocationDistanceService,
+            ICalculateTwoLocationDistanceService calculateTwoLocationDistanceService,
             IDeviceLookupRepository deviceLookupRepository,
-            IDistanceMoreMessagePublishingClient distanceMoreMessagePublishingClient,
+            IDistanceAlertMessagePublishingClient distanceAlertMessagePublishingClient,
             IEnvironmentSettings environmentSettings
             )
         {
             _deviceLocationRepository = deviceLocationRepository;
-            _calculateLocationDistanceService = calculateLocationDistanceService;
+            _calculateTwoLocationDistanceService = calculateTwoLocationDistanceService;
             _deviceLookupRepository = deviceLookupRepository;
-            _distanceMoreMessagePublishingClient = distanceMoreMessagePublishingClient;
+            _distanceAlertMessagePublishingClient = distanceAlertMessagePublishingClient;
             _maxDistanceAllowed = environmentSettings.MaxDistanceAllowed;
         }
 
@@ -50,7 +50,7 @@ namespace DeliveryTracker.Business
                 {
                     foreach (var linkedDeviceLocation in linkedDevicesLocation)
                     {
-                        var distance = _calculateLocationDistanceService.HaversineDistance(
+                        var distance = _calculateTwoLocationDistanceService.HaversineDistance(
                             new GeoCordinate(linkedDeviceLocation.Latitude, linkedDeviceLocation.Longitude),
                             new GeoCordinate(deviceLocation.Latitude, deviceLocation.Longitude));
                         var alertedVehicleHandheld = new AlertedVehicleHandheld
@@ -64,7 +64,7 @@ namespace DeliveryTracker.Business
                             LinkMacLong = linkedDeviceLocation.Longitude
                         };
 
-                        await _distanceMoreMessagePublishingClient.PublishAsync(alertedVehicleHandheld, cancellationToken);
+                        await _distanceAlertMessagePublishingClient.PublishAsync(alertedVehicleHandheld, cancellationToken);
                     }
                 }
             }
